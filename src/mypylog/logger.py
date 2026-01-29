@@ -77,6 +77,16 @@ def _pretty_repr(obj: Any, title: str | None = None) -> str:
     return string_io.getvalue().rstrip()
 
 
+# 레벨 우선순위 매핑
+_LEVEL_PRIORITY = {
+    "DEBUG": 10,
+    "INFO": 20,
+    "WARNING": 30,
+    "ERROR": 40,
+    "CRITICAL": 50,
+}
+
+
 class PrettyLogger:
     """loguru + rich 조합 로거 래퍼"""
 
@@ -84,6 +94,7 @@ class PrettyLogger:
         self._name = name  # 로거 이름 (파일 분리용)
         self._logger = _loguru_logger
         self._file_handlers: list[str] = []  # 파일 핸들러 경로 목록
+        self._min_level_no = _LEVEL_PRIORITY[level.value]
         self._configure_default(level)
 
     def _configure_default(self, level: LogLevel):
@@ -98,6 +109,11 @@ class PrettyLogger:
 
     def _log(self, level: str, message: Any, *args: Any, **kwargs: Any):
         """로그 출력 (객체면 pretty print)"""
+        # 레벨 체크
+        msg_level_no = _LEVEL_PRIORITY.get(level.upper(), 0)
+        if msg_level_no < self._min_level_no:
+            return
+
         all_parts = [message] + list(args)
         has_pretty_obj = any(_is_pretty_printable(p) for p in all_parts)
 
@@ -242,6 +258,11 @@ class PrettyLogger:
     # JSON 전용 메서드
     def json(self, obj: Any, title: str | None = None, level: str = "info"):
         """JSON/객체를 예쁘게 출력 (명시적, 색상 포함)"""
+        # 레벨 체크
+        msg_level_no = _LEVEL_PRIORITY.get(level.upper(), 0)
+        if msg_level_no < self._min_level_no:
+            return
+
         from datetime import datetime
         from rich.text import Text
 
