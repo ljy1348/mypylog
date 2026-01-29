@@ -4,6 +4,7 @@ loguru + rich 조합 로거
 문자열이 아닌 객체(dict, list 등)가 들어오면 rich로 예쁘게 출력
 """
 
+import enum
 import functools
 import sys
 import time
@@ -17,6 +18,14 @@ from rich.panel import Panel
 
 # Rich 콘솔 (컬러 출력용)
 _console = Console()
+
+
+class LogLevel(enum.Enum):
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+    CRITICAL = "CRITICAL"
 
 
 def _is_pretty_printable(obj: Any) -> bool:
@@ -71,19 +80,19 @@ def _pretty_repr(obj: Any, title: str | None = None) -> str:
 class PrettyLogger:
     """loguru + rich 조합 로거 래퍼"""
 
-    def __init__(self, name: str | None = None, level: str = "DEBUG"):
+    def __init__(self, name: str | None = None, level: LogLevel = LogLevel.DEBUG):
         self._name = name  # 로거 이름 (파일 분리용)
         self._logger = _loguru_logger
         self._file_handlers: list[str] = []  # 파일 핸들러 경로 목록
         self._configure_default(level)
 
-    def _configure_default(self, level):
+    def _configure_default(self, level: LogLevel):
         """기본 로거 설정"""
         self._logger.remove()  # 기본 핸들러 제거
         self._logger.add(
             sys.stderr,
             format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-            level=level,
+            level=level.value,
             colorize=True,
         )
 
@@ -277,7 +286,9 @@ logger = PrettyLogger()
 _loggers: dict[str, PrettyLogger] = {}
 
 
-def get_logger(name: str | None = None, level: str = "DEBUG") -> PrettyLogger:
+def get_logger(
+    name: str | None = None, level: LogLevel = LogLevel.DEBUG
+) -> PrettyLogger:
     """
     로거 인스턴스 반환
 
