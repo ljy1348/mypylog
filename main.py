@@ -2,7 +2,7 @@
 
 from src.mypylog import get_logger, log_execution
 
-logger = get_logger("test")
+logger = get_logger("test", level="INFO")
 # 기본 문자열 로깅
 logger.info("일반 메시지입니다")
 logger.debug("디버그 메시지")
