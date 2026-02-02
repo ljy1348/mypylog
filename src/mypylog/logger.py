@@ -395,9 +395,19 @@ def log_execution(
 
             except Exception as e:
                 elapsed = time.perf_counter() - start_time
-                _logger.exception(
-                    f"[ERROR] {func_name} raised {type(e).__name__}: {e} ({elapsed:.4f}s)"
-                )
+
+                # 중복 로깅 방지: 하위 데코레이터에서 이미 로깅했다면 건너뜀
+                if not getattr(e, "_logged_by_mypylog", False):
+                    _logger.exception(
+                        f"[ERROR] {func_name} raised {type(e).__name__}: {e} ({elapsed:.4f}s)"
+                    )
+                    # 로깅 처리 완료 표시 (속성 추가)
+                    try:
+                        setattr(e, "_logged_by_mypylog", True)
+                    except AttributeError:
+                        # 내장 타입 등 속성 추가가 불가능한 경우 무시 (드문 케이스)
+                        pass
+
                 raise
 
         return wrapper  # type: ignore
