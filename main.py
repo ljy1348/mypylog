@@ -49,7 +49,13 @@ logger.json(data, title="사용자 데이터")
 
 @log_execution(log=logger)
 def deco_test(msg):
+    deco_test2(msg)
     return msg
+
+
+@log_execution(log=logger)
+def deco_test2(msg):
+    raise Exception("test")
 
 
 deco_test(data)

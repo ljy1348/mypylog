@@ -129,7 +129,9 @@ class PrettyLogger:
             # 파일에도 저장
             self._log_to_file(level, all_parts)
 
-    def _log_to_file(self, level: str, parts: list[Any]):
+    def _log_to_file(
+        self, level: str, parts: list[Any], exception_traceback: str | None = None
+    ):
         """파일에 pretty format으로 로그 저장"""
         if not self._file_handlers:
             return
@@ -155,6 +157,10 @@ class PrettyLogger:
                 formatted_parts.append(str(part))
 
         message = " ".join(formatted_parts)
+
+        if exception_traceback:
+            message += f"\n{exception_traceback}"
+
         log_line = f"{now} | {level.upper():<8} | {message}\n"
 
         # 파일에 직접 쓰기
@@ -202,6 +208,9 @@ class PrettyLogger:
             else:
                 _console.print(str(part), end="")
 
+        # rich는 exception 출력 시 별도 처리하므로 여기서는 줄바꿈만
+        _console.print()
+
     def debug(self, message: Any, *args: Any, **kwargs: Any):
         self._log("debug", message, *args, **kwargs)
 
@@ -219,8 +228,14 @@ class PrettyLogger:
 
     def exception(self, message: Any, *args: Any, **kwargs: Any):
         """예외 정보와 함께 에러 로그"""
+        import traceback
+
         formatted = _format_message(message, *args, **kwargs)
         self._logger.opt(depth=1, exception=True).error(formatted)
+
+        # 파일에도 저장 (Traceback 포함)
+        tb = traceback.format_exc()
+        self._log_to_file("error", [formatted], exception_traceback=tb)
 
     def add(self, *args, **kwargs):
         """loguru의 add 메서드 위임 (파일 로깅 등)"""
