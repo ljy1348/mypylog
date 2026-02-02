@@ -1,8 +1,9 @@
 """mypylog 사용 예시"""
 
-from src.mypylog import get_logger, log_execution
+from src.mypylog import get_logger, log_execution, LogLevel
 
-logger = get_logger("test")
+logger = get_logger("test", level=LogLevel.INFO)
+logger.add_file("test.log")
 # 기본 문자열 로깅
 logger.info("일반 메시지입니다")
 logger.debug("디버그 메시지")
