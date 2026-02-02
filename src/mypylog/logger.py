@@ -363,7 +363,7 @@ def log_execution(
 
             except Exception as e:
                 elapsed = time.perf_counter() - start_time
-                _logger.error(
+                _logger.exception(
                     f"[ERROR] {func_name} raised {type(e).__name__}: {e} ({elapsed:.4f}s)"
                 )
                 raise
