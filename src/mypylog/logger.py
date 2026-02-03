@@ -8,12 +8,19 @@ import enum
 import functools
 import sys
 import time
-from typing import Any, Callable, TypeVar, overload
+from typing import Any, Callable, TypeVar, overload, Protocol, runtime_checkable
 
 from loguru import logger as _loguru_logger
 from rich.console import Console
 from rich.pretty import Pretty
 from rich.panel import Panel
+
+
+@runtime_checkable
+class LogHandler(Protocol):
+    def __call__(
+        self, level: str, message: str, parts: list[Any], traceback: str | None = None
+    ) -> None: ...
 
 
 # Rich 콘솔 (컬러 출력용)
@@ -93,7 +100,7 @@ class PrettyLogger:
     def __init__(self, name: str | None = None, level: LogLevel = LogLevel.DEBUG):
         self._name = name  # 로거 이름 (파일 분리용)
         self._logger = _loguru_logger
-        self._file_handlers: list[str] = []  # 파일 핸들러 경로 목록
+        self._handlers: list[LogHandler] = []  # 범용 핸들러 목록
         self._min_level_no = _LEVEL_PRIORITY[level.value]
         self._configure_default(level)
 
@@ -120,20 +127,20 @@ class PrettyLogger:
         if has_pretty_obj:
             # 객체가 있으면 rich로 직접 출력 (색상 유지)
             self._log_with_rich(level, all_parts)
-            # 파일에도 저장 (색상 없이)
-            self._log_to_file(level, all_parts)
+            # 핸들러로 전송
+            self._dispatch_to_handlers(level, all_parts)
         else:
             # 문자열만 있으면 loguru로 출력 (콘솔)
             formatted = " ".join(str(p) for p in all_parts)
             getattr(self._logger.opt(depth=2), level)(formatted)
-            # 파일에도 저장
-            self._log_to_file(level, all_parts)
+            # 핸들러로 전송
+            self._dispatch_to_handlers(level, all_parts)
 
-    def _log_to_file(
+    def _dispatch_to_handlers(
         self, level: str, parts: list[Any], exception_traceback: str | None = None
     ):
-        """파일에 pretty format으로 로그 저장"""
-        if not self._file_handlers:
+        """등록된 모든 핸들러에게 로그 전송"""
+        if not self._handlers:
             return
 
         from datetime import datetime
@@ -142,7 +149,7 @@ class PrettyLogger:
         # 타임스탬프
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        # 메시지 조합
+        # 메시지 조합 (공통 포맷팅)
         formatted_parts = []
         for part in parts:
             if _is_pretty_printable(part):
@@ -156,20 +163,19 @@ class PrettyLogger:
             else:
                 formatted_parts.append(str(part))
 
-        message = " ".join(formatted_parts)
+        message_body = " ".join(formatted_parts)
 
         if exception_traceback:
-            message += f"\n{exception_traceback}"
+            message_body += f"\n{exception_traceback}"
 
-        log_line = f"{now} | {level.upper():<8} | {message}\n"
+        full_message = f"{now} | {level.upper():<8} | {message_body}\n"
 
-        # 파일에 직접 쓰기
-        for file_path in self._file_handlers:
+        # 모든 핸들러 호출
+        for handler in self._handlers:
             try:
-                with open(file_path, "a", encoding="utf-8") as f:
-                    f.write(log_line)
+                handler(level, full_message, parts, exception_traceback)
             except Exception:
-                pass  # 파일 쓰기 실패 무시
+                pass  # 핸들러 실행 중 에러 무시
 
     def _log_with_rich(self, level: str, parts: list[Any]):
         """rich로 직접 출력 (색상 유지)"""
@@ -233,13 +239,17 @@ class PrettyLogger:
         formatted = _format_message(message, *args, **kwargs)
         self._logger.opt(depth=1, exception=True).error(formatted)
 
-        # 파일에도 저장 (Traceback 포함)
+        # 핸들러에도 전송 (Traceback 포함)
         tb = traceback.format_exc()
-        self._log_to_file("error", [formatted], exception_traceback=tb)
+        self._dispatch_to_handlers("error", [formatted], exception_traceback=tb)
 
     def add(self, *args, **kwargs):
         """loguru의 add 메서드 위임 (파일 로깅 등)"""
         return self._logger.add(*args, **kwargs)
+
+    def add_handler(self, handler: LogHandler):
+        """범용 로그 핸들러 추가"""
+        self._handlers.append(handler)
 
     def add_file(
         self,
@@ -259,8 +269,17 @@ class PrettyLogger:
         Note:
             각 로거 인스턴스는 자신의 파일에만 로그를 저장합니다.
         """
-        # 직접 파일 쓰기를 위해 경로만 저장
-        self._file_handlers.append(path)
+
+        def file_handler(
+            level: str, message: str, parts: list[Any], traceback: str | None = None
+        ):
+            try:
+                with open(path, "a", encoding="utf-8") as f:
+                    f.write(message)
+            except Exception:
+                pass
+
+        self.add_handler(file_handler)
 
     def remove(self, handler_id: int | None = None):
         """loguru의 remove 메서드 위임"""
@@ -305,8 +324,8 @@ class PrettyLogger:
         else:
             _console.print(Pretty(obj, expand_all=True))
 
-        # 파일에도 저장
-        self._log_to_file(level, [obj] if not title else [f"[{title}]", obj])
+        # 핸들러로 전송
+        self._dispatch_to_handlers(level, [obj] if not title else [f"[{title}]", obj])
 
     # rich 콘솔 직접 접근
     @property

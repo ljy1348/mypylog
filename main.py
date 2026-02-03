@@ -47,6 +47,29 @@ print("\n" + "=" * 50 + "\n")
 logger.json(data, title="사용자 데이터")
 
 
+# 커스텀 핸들러 테스트
+print("\n" + "=" * 50 + "\n")
+print("[커스텀 핸들러 테스트]")
+
+
+def my_custom_handler(level, message, parts, traceback=None):
+    """
+    커스텀 핸들러 예시
+    여기서 HTTP 요청을 보내거나, 다른 로깅 시스템으로 전송할 수 있습니다.
+    """
+    print(f"🚀 [CUSTOM HANDLER] {level} - {len(parts)} parts received")
+    # 원본 데이터 접근 가능
+    for p in parts:
+        if isinstance(p, dict):
+            print(f"   -> 딕셔너리 데이터 감지: {p.get('name', 'Unknown')}")
+
+
+logger.add_handler(my_custom_handler)
+logger.info("핸들러 테스트 메시지", {"name": "Test User", "value": 123})
+
+print("\n" + "=" * 50 + "\n")
+
+
 @log_execution(log=logger)
 def deco_test(msg):
     deco_test2(msg)
@@ -58,4 +81,7 @@ def deco_test2(msg):
     raise Exception("test")
 
 
-deco_test(data)
+try:
+    deco_test(data)
+except Exception:
+    print("예상된 에러가 발생했습니다 (테스트 완료)")

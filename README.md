@@ -59,6 +59,25 @@ logger.json(data, title="사용자 데이터")
 logger.add_file("app.log")
 ```
 
+### 범용 핸들러 (HTTP 전송 등)
+
+`add_handler(callback)`를 사용하여 로그를 원하는 곳으로 전송할 수 있습니다.
+
+```python
+import requests
+
+def http_handler(level, message, parts, traceback=None):
+    payload = {
+        "level": level,
+        "message": message, # pretty print된 최종 문자열
+        "data": [str(p) for p in parts] # 원본 데이터
+    }
+    # requests.post("http://...", json=payload)
+    print(f"[전송] {payload}")
+
+logger.add_handler(http_handler)
+```
+
 ### 여러 로거 인스턴스 (파일 분리)
 
 ```python
