@@ -320,7 +320,9 @@ class PrettyLogger:
         _console.print(header)
 
         if title:
-            _console.print(Panel(Pretty(obj, expand_all=True), title=title))
+            _console.print(
+                Panel(Pretty(obj, expand_all=True), title=title, expand=False)
+            )
         else:
             _console.print(Pretty(obj, expand_all=True))
 
