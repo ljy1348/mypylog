@@ -6,6 +6,7 @@ loguru + rich 조합 로거
 
 import enum
 import functools
+import json as _json
 import sys
 import time
 from typing import Any, Callable, TypeVar, overload, Protocol, runtime_checkable
@@ -53,7 +54,7 @@ def _format_message(message: Any, *args: Any, **kwargs: Any) -> str:
 
     for part in all_parts:
         if _is_pretty_printable(part):
-            pretty = _pretty_repr(part)
+            pretty = _json_repr(part)
             formatted_parts.append(pretty)
             if "\n" in pretty:
                 has_multiline = True
@@ -84,6 +85,11 @@ def _pretty_repr(obj: Any, title: str | None = None) -> str:
     return string_io.getvalue().rstrip()
 
 
+def _json_repr(obj: Any) -> str:
+    """객체를 복사 가능한 JSON 문자열로 변환"""
+    return _json.dumps(obj, ensure_ascii=False, indent=2, default=str)
+
+
 # 레벨 우선순위 매핑
 _LEVEL_PRIORITY = {
     "DEBUG": 10,
@@ -91,6 +97,11 @@ _LEVEL_PRIORITY = {
     "WARNING": 30,
     "ERROR": 40,
     "CRITICAL": 50,
+}
+
+_CONCISE_EXCEPTION_OPTIONS = {
+    "backtrace": True,
+    "diagnose": False,
 }
 
 
@@ -112,6 +123,7 @@ class PrettyLogger:
             format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
             level=level.value,
             colorize=True,
+            **_CONCISE_EXCEPTION_OPTIONS,
         )
 
     def _log(self, level: str, message: Any, *args: Any, **kwargs: Any):
@@ -144,8 +156,6 @@ class PrettyLogger:
             return
 
         from datetime import datetime
-        from io import StringIO
-
         # 타임스탬프
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -153,13 +163,7 @@ class PrettyLogger:
         formatted_parts = []
         for part in parts:
             if _is_pretty_printable(part):
-                # 객체는 pretty format으로
-                string_io = StringIO()
-                console = Console(
-                    file=string_io, force_terminal=False, width=100, no_color=True
-                )
-                console.print(Pretty(part, expand_all=True))
-                formatted_parts.append("\n" + string_io.getvalue().rstrip())
+                formatted_parts.append("\n" + _json_repr(part))
             else:
                 formatted_parts.append(str(part))
 
@@ -210,7 +214,7 @@ class PrettyLogger:
 
             if _is_pretty_printable(part):
                 _console.print()  # 줄바꿈
-                _console.print(Pretty(part, expand_all=True))
+                _console.print(_json_repr(part))
             else:
                 _console.print(str(part), end="")
 
@@ -245,6 +249,8 @@ class PrettyLogger:
 
     def add(self, *args, **kwargs):
         """loguru의 add 메서드 위임 (파일 로깅 등)"""
+        kwargs.setdefault("backtrace", True)
+        kwargs.setdefault("diagnose", False)
         return self._logger.add(*args, **kwargs)
 
     def add_handler(self, handler: LogHandler):
@@ -319,15 +325,17 @@ class PrettyLogger:
 
         _console.print(header)
 
+        json_text = _json_repr(obj)
+
         if title:
-            _console.print(
-                Panel(Pretty(obj, expand_all=True), title=title, expand=False)
-            )
-        else:
-            _console.print(Pretty(obj, expand_all=True))
+            _console.print(f"[{title}]")
+
+        _console.print(json_text)
 
         # 핸들러로 전송
-        self._dispatch_to_handlers(level, [obj] if not title else [f"[{title}]", obj])
+        self._dispatch_to_handlers(
+            level, [json_text] if not title else [f"[{title}]", json_text]
+        )
 
     # rich 콘솔 직접 접근
     @property
